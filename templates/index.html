@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Stream</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+</head>
+<body class="bg-light d-flex flex-column justify-content-center align-items-center min-vh-100">
+    <div class="container text-center">
+        <h1 class="display-4 mb-4">Video Stream</h1>
+        <div class="row justify-content-center mb-4">
+            <div class="col-auto">
+                <video id="video" class="border rounded" width="640" height="480" autoplay></video>
+            </div>
+        </div>
+        <div id="imageContainer" class="row justify-content-center"></div>
+    </div>
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+    <script>
+        var video = document.getElementById('video');
+
+        // Check if getUserMedia is supported
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: true }).then(function(stream) {
+                video.srcObject = stream;
+                video.play();
+                console.log("Video stream started");
+            }).catch(function(err) {
+                console.error("Error accessing the camera: ", err);
+            });
+        } else {
+            console.error("getUserMedia not supported on your browser!");
+        }
+
+        var socket = io.connect('http://' + document.domain + ':' + location.port);
+        socket.on('connect', function() {
+            console.log("Socket connected");
+        });
+
+        video.addEventListener('play', function() {
+            var canvas = document.createElement('canvas');
+            canvas.width = video.width;
+            canvas.height = video.height;
+            var context = canvas.getContext('2d');
+
+            function sendFrame() {
+                if (video.paused || video.ended) {
+                    console.log("Video paused or ended");
+                    return;
+                }
+
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                var dataURL = canvas.toDataURL('image/jpeg');
+                console.log("Sending frame...");
+                socket.emit('image', dataURL);
+
+                requestAnimationFrame(sendFrame);
+            }
+
+            console.log("Starting to send frames...");
+            requestAnimationFrame(sendFrame);
+        }, false);
+        var img = document.createElement('img');
+
+        socket.on('response_back', function(data) {
+            img.src = data;
+            img.classList.add('img-fluid', 'border', 'rounded', 'mt-3');
+            document.getElementById('imageContainer').appendChild(img);
+            console.log("Received processed frame");
+        });
+    </script>
+</body>
+</html>
